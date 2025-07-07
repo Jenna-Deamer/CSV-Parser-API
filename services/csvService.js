@@ -19,16 +19,23 @@ exports.parseAndMapCSV = (csvContent, mapping) => {
 exports.categorizeTransactionsWithRules = (records, rules) => {
   // Map through all records
   return records.map((transaction) => {
-    // Map through all rules with current transaction
-    const matchedRule = rules.find((rule) =>
-      // Lowercase memo, check if memo contains any keywords from rule
-      transaction.memo.toLowerCase().includes(rule.keyword.toLowerCase())
+    // Convert memo to lowercase for case-insensitive matching
+    const lowerMemo = transaction.memo.toLowerCase();
+    
+    // Find all matching rules for this transaction
+    const matchedRules = rules.filter((rule) =>
+      lowerMemo.includes(rule.keyword.toLowerCase())
     );
+
+    // If multiple rules match, prioritize by order in rules array (first match wins)
+    // !Users should have a way to order their rules in the UI
+    const bestMatch = matchedRules.length > 0 ? matchedRules[0] : null;
 
     // return whole transaction object & new category field
     return {
       ...transaction,
-      category: matchedRule?.category || "Uncategorized", // Assign category if rule matches, else 'Uncategorized'
+      category: bestMatch?.category || "Uncategorized", // Assign category if rule matches, else 'Uncategorized'
+      matchedKeywords: matchedRules.map(rule => rule.keyword) // track which keywords matched for debugging
     };
   });
 };
