@@ -1,54 +1,77 @@
-import fs from "fs";
-import path from "path";
-import "dotenv/config";
-import {
-  GoogleGenAI,
-  createUserContent,
-  createPartFromUri,
-} from "@google/genai";
+require("dotenv/config");
+const categoriesData = require("../services/mockCategories");
+const { GoogleGenAI, createUserContent } = require("@google/genai");
 
-exports.aiCategorizeTransactions = async (transactions, rules) => {
-  console.log("api key", process.env.GEMINI_API_KEY);
+exports.aiCategorizeTransactions = async (transactions) => {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-  // 1. Load CSV
-  const csvFile = path.resolve(
-    path.dirname(new URL(import.meta.url).pathname),
-    "accountactivity.csv"
-  );
-  if (!fs.existsSync(csvFile)) {
-    console.error(`CSV file not found: ${csvFile}`);
-    process.exit(1);
+  // Extract all category names from the nested structure
+  const allCategories = [
+    ...categoriesData.income.map((cat) => cat.name),
+    ...categoriesData.expense.map((cat) => cat.name),
+    ...categoriesData.transfer.map((cat) => cat.name),
+  ];
+
+  const prompt = `You are a transaction categorizer. Your task is to assign each transaction to the most appropriate category from the provided list.
+
+Available categories: ${allCategories.join(", ")}
+
+Instructions:
+1. For each transaction, analyze the description/vendor and assign it to the MOST SUITABLE category from the list above
+2. Return the result as a JSON array where each object contains: transaction_id, description, amount, assigned_category, confidence_score (0-100)
+
+Transactions to categorize:
+${JSON.stringify(transactions, null, 2)}
+
+Return only valid JSON in this format:
+[
+  {
+    "transaction_id": "id_here",
+    "description": "transaction_description",
+    "amount": transaction_amount,
+    "assigned_category": "category_name",
+    "confidence_score": 85
   }
+]`;
 
-  // 2. Upload CSV as a reusable file
-  const file = await ai.files.upload({
-    file: csvFile,
-    config: { mimeType: "text/csv" },
-  });
-  console.log("Uploaded file URI:", file.uri);
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: createUserContent([prompt]),
+      generationConfig: {
+        maxOutputTokens: 2048,
+        temperature: 0.2,
+      },
+    });
 
-  // 3. Call model with analysis prompt
-  const prompt = `extract all the vendors, their categories (you have to assign them such as Grocery/Rent etc), and the amount spend/received on this credit card statement.`;
+    console.log("\n--- AI Analysis Result ---\n");
+    console.log(response.text);
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: createUserContent([
-      createPartFromUri(file.uri, file.mimeType),
-      "\n\n",
-      prompt,
-    ]),
-    generationConfig: {
-      maxOutputTokens: 1024,
-      temperature: 0.2,
-    },
-  });
-
-  console.log("\n--- Analysis Result ---\n");
-  console.log(response.text);
+    // Parse the response as JSON
+    try {
+      let jsonText = response.text;
+      
+      // Remove markdown code blocks if present
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      
+      // Remove any leading/trailing whitespace
+      jsonText = jsonText.trim();
+      
+      // Try to extract JSON array if it's embedded in other text
+      const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[0];
+      }
+      
+      const parsedResponse = JSON.parse(jsonText);
+      return parsedResponse;
+    } catch (parseError) {
+      console.warn("Could not parse AI response as JSON:", parseError.message);
+      console.warn("Raw response:", response.text);
+      return { rawResponse: response.text };
+    }
+  } catch (error) {
+    console.error("Error calling Gemini API:", error);
+    throw error;
+  }
 };
-
-main().catch((err) => {
-  console.error("Error:", err);
-  process.exit(1);
-});

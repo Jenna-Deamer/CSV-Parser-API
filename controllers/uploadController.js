@@ -1,5 +1,6 @@
 const csvService = require("../services/csvService");
 const rules = require("../services/mockCategoryRules");
+const aiCategorizer = require("../services/aiCategorizer");
 
 exports.handleUpload = async (req, res) => {
   try {
@@ -34,6 +35,15 @@ exports.handleUpload = async (req, res) => {
       rules
     );
     console.log("Categorized transactions:", categorizedTransactions);
+
+    // Create list of uncategorized transactions and pass to AI for categorization
+    const uncategorizedTransactions = categorizedTransactions.filter(
+      (transactions) => transactions.category === "Uncategorized"
+    );
+    console.log("Uncategorized transactions:", uncategorizedTransactions);
+    // const aiCategorizedTransactions = await aiCategorizer.aiCategorizeTransactions(uncategorizedTransactions);
+    // console.log("AI Categorized transactions:", aiCategorizedTransactions);
+
     // Return success response with processed data
     return res.status(200).json({
       message: "Upload processed",
