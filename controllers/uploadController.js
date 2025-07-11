@@ -1,6 +1,7 @@
 const csvService = require("../services/csvService");
 const rules = require("../services/mockCategoryRules");
-const aiCategorizer = require("../services/aiCategorizer");
+const { universalPreprocessor} = require("../services/universalPreprocessor");
+require("../services/aiCategorizer");
 
 exports.handleUpload = async (req, res) => {
   try {
@@ -22,13 +23,18 @@ exports.handleUpload = async (req, res) => {
         fileBuffer.substring(0, 200) + (fileBuffer.length > 200 ? "..." : ""),
     });
     console.log("Mappings received:", mapping);
-    console.log("Selected account:", account);
+    console.log("Selected account:", JSON.stringify(account, null, 2));
     console.log("==============================");
 
     // Process the CSV file using CSVService
     const transactions = csvService.parseAndMapCSV(fileBuffer, mapping);
     console.log("Parsed transactions:", transactions);
 
+    // Sanitize data & Standardize formats
+    const normalizedTransactions = universalPreprocessor(transactions);
+    console.log("Normalized transactions:", normalizedTransactions);
+    // Dispatch to specific handler 
+  
     // Categorize transactions using the rules
     const categorizedTransactions = csvService.categorizeTransactionsWithRules(
       transactions,
