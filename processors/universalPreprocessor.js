@@ -37,7 +37,7 @@ exports.universalPreprocessor = (transactions) => {
     if (!isNaN(rawAmount)) {
       // Preserve original amount for reference
       transaction.originalAmount = transaction.amount;
-      
+
       // Store Direction (in or out) based on sign
       transaction.direction = rawAmount < 0 ? "out" : "in";
 
@@ -52,7 +52,6 @@ exports.universalPreprocessor = (transactions) => {
       transaction.direction = "unknown";
     }
   });
-  
 
   return transactions;
 };

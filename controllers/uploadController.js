@@ -1,6 +1,11 @@
 const csvService = require("../services/csvService");
 const rules = require("../services/mockCategoryRules");
-const { universalPreprocessor} = require("../services/universalPreprocessor");
+const {
+  universalPreprocessor,
+} = require("../processors/universalPreprocessor");
+const {
+  creditProcessor,
+} = require("../processors/accountProcessors/creditProcessor");
 require("../services/aiCategorizer");
 
 exports.handleUpload = async (req, res) => {
@@ -33,8 +38,12 @@ exports.handleUpload = async (req, res) => {
     // Sanitize data & Standardize formats
     const normalizedTransactions = universalPreprocessor(transactions);
     console.log("Normalized transactions:", normalizedTransactions);
-    // Dispatch to specific handler 
-  
+    // Dispatch to specific handler
+    console.log('Account type:', account.type);
+    if (account.type === "credit") {
+      normalizedTransactions = creditProcessor(normalizedTransactions);
+      console.log("Processed credit transactions:", normalizedTransactions);
+    }
     // Categorize transactions using the rules
     const categorizedTransactions = csvService.categorizeTransactionsWithRules(
       transactions,
