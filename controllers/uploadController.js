@@ -6,7 +6,7 @@ const {
 const {
   creditProcessor,
 } = require("../processors/accountProcessors/creditProcessor");
-require("../services/aiCategorizer");
+const aiCategorizer = require("../services/aiCategorizer");
 
 exports.handleUpload = async (req, res) => {
   try {
@@ -17,7 +17,7 @@ exports.handleUpload = async (req, res) => {
     const mapping = JSON.parse(req.body.mapping);
 
     // Get the selected account identifier
-    const account = req.body.account;
+    const account = JSON.parse(req.body.account);
 
     console.log("=== BACKEND RECEIVED DATA ===");
     console.log("File received:", {
@@ -27,8 +27,8 @@ exports.handleUpload = async (req, res) => {
       preview:
         fileBuffer.substring(0, 200) + (fileBuffer.length > 200 ? "..." : ""),
     });
-    console.log("Mappings received:", mapping);
-    console.log("Selected account:", JSON.stringify(account, null, 2));
+    console.log("Mappings received:", JSON.parse(req.body.mapping));
+    console.log("Selected account:", JSON.parse(req.body.account));
     console.log("==============================");
 
     // Process the CSV file using CSVService
@@ -36,28 +36,29 @@ exports.handleUpload = async (req, res) => {
     console.log("Parsed transactions:", transactions);
 
     // Sanitize data & Standardize formats
-    const normalizedTransactions = universalPreprocessor(transactions);
+    let normalizedTransactions = universalPreprocessor(transactions);
     console.log("Normalized transactions:", normalizedTransactions);
     // Dispatch to specific handler
-    console.log('Account type:', account.type);
-    if (account.type === "credit") {
+    console.log("Account type:", account.accountType);
+    if (account.accountType.toLowerCase() === "credit") {
       normalizedTransactions = creditProcessor(normalizedTransactions);
       console.log("Processed credit transactions:", normalizedTransactions);
     }
     // Categorize transactions using the rules
     const categorizedTransactions = csvService.categorizeTransactionsWithRules(
-      transactions,
+      normalizedTransactions,
       rules
     );
     console.log("Categorized transactions:", categorizedTransactions);
 
     // Create list of uncategorized transactions and pass to AI for categorization
     const uncategorizedTransactions = categorizedTransactions.filter(
-      (transactions) => transactions.category === "Uncategorized"
+      (categorizedTransactions) =>
+        categorizedTransactions.category === "Uncategorized"
     );
     console.log("Uncategorized transactions:", uncategorizedTransactions);
-    // const aiCategorizedTransactions = await aiCategorizer.aiCategorizeTransactions(uncategorizedTransactions);
-    // console.log("AI Categorized transactions:", aiCategorizedTransactions);
+    const aiCategorizedTransactions = await aiCategorizer.aiCategorizeTransactions(uncategorizedTransactions);
+    console.log("AI Categorized transactions:", aiCategorizedTransactions);
 
     // Return success response with processed data
     return res.status(200).json({
